@@ -1,4 +1,7 @@
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+#FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+#FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
+#FROM docker.io/nvidia/cuda:12.9.1-cudnn-runtime-ubuntu24.04
+FROM docker.io/nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
 LABEL maintainer="Hugging Face"
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -11,15 +14,34 @@ SHELL ["sh", "-lc"]
 
 ARG PYTORCH='2.6.0'
 # Example: `cu102`, `cu113`, etc.
-ARG CUDA='cu121'
+#ARG CUDA='cu121'
+ARG CUDA='nightly/cu129'
 # Disable kernel mapping for quantization tests
 ENV DISABLE_KERNEL_MAPPING=1
 
+# Ensure HTTPS for apt sources
+RUN sed -i 's/http:/https:/' /etc/apt/sources.list
+RUN sed -i 's/http:/https:/' /etc/apt/sources.list.d/*
+
 RUN apt update
-RUN apt install -y git libsndfile1-dev tesseract-ocr espeak-ng python3 python3-pip ffmpeg
-RUN python3 -m pip install --no-cache-dir --upgrade pip
+#RUN apt install -y git libsndfile1-dev tesseract-ocr espeak-ng python3 python3-pip ffmpeg
+RUN apt install -y git libsndfile1-dev tesseract-ocr espeak-ng python3-full python3-pip ffmpeg
+RUN apt install -y python3-venv
+# Externally managed (break system managed or use venv)
+RUN python3 -m venv .venv && . .venv/bin/activate && python3 -m pip install --no-cache-dir --upgrade pip
+
+ENV VIRTUAL_ENV=$PWD/.venv
+ENV PYTHONPATH=$VIRTUAL_ENV
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+
+RUN pip install wheel
+
+#RUN python3 -m pip install --no-cache-dir --upgrade pip
+#RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade pip
 
 ARG REF=main
+# TODO: change repo if using fork
+#RUN git clone https://github.com/trentapple/transformers && cd transformers && git checkout $REF
 RUN git clone https://github.com/huggingface/transformers && cd transformers && git checkout $REF
 
 RUN [ ${#PYTORCH} -gt 0 ] && VERSION='torch=='$PYTORCH'.*' ||  VERSION='torch'; echo "export VERSION='$VERSION'" >> ~/.profile
